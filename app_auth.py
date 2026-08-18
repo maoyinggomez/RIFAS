@@ -22,21 +22,28 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 
-app = Flask(__name__)
+IS_PRODUCTION = bool(os.getenv("RENDER") or os.getenv("FLASK_ENV") == "production" or os.getenv("ENVIRONMENT") == "production")
+
+app = Flask(__name__, static_folder=".", static_url_path="")
 
 database_url = os.getenv("DATABASE_URL", "sqlite:///rifa.db")
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "tu-clave-super-secreta-cambiar-en-produccion")
+secret_key = os.getenv("SECRET_KEY") or os.getenv("FLASK_SECRET_KEY") or "tu-clave-super-secreta-cambiar-en-produccion"
+app.config["SECRET_KEY"] = secret_key
+app.secret_key = secret_key
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-if os.getenv("FLASK_ENV") == "production":
+# Soporte para proxy inverso de Render (HTTPS)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
+if IS_PRODUCTION:
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["PREFERRED_URL_SCHEME"] = "https"
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -240,11 +247,8 @@ def google_login():
         session["google_login_next"] = next_url
 
     try:
-        redirect_uri = url_for(
-            "google_callback",
-            _external=True,
-            _scheme=app.config.get("PREFERRED_URL_SCHEME", "http"),
-        )
+        scheme = "https" if (request.is_secure or request.headers.get("X-Forwarded-Proto") == "https" or IS_PRODUCTION) else "http"
+        redirect_uri = url_for("google_callback", _external=True, _scheme=scheme)
         return google.authorize_redirect(redirect_uri)
     except Exception as exc:
         app.logger.exception("Google OAuth login failed")
@@ -257,28 +261,48 @@ def google_callback():
         return redirect(url_for("login_page", error="google_not_configured"))
 
     if request.args.get("error"):
-        return redirect(url_for("login_page", error=request.args.get("error")))
+        error_msg = request.args.get("error_description") or request.args.get("error")
+        return redirect(url_for("login_page", error=error_msg))
 
     try:
         token = google.authorize_access_token()
-        profile = google.parse_id_token(token)
+        profile = None
+
+        if isinstance(token, dict) and "userinfo" in token:
+            profile = token["userinfo"]
 
         if not profile:
-            profile = google.get("userinfo").json()
+            try:
+                profile = google.parse_id_token(token)
+            except Exception:
+                pass
+
+        if not profile:
+            try:
+                resp = google.get("https://openidconnect.googleapis.com/v1/userinfo")
+                if resp.ok:
+                    profile = resp.json()
+            except Exception:
+                pass
+
+        if not profile:
+            return redirect(url_for("login_page", error="google_profile_incomplete"))
+
+        user = find_or_create_google_user(profile)
+        if not user:
+            return redirect(url_for("login_page", error="google_profile_incomplete"))
+
+        db.session.commit()
+        login_user(user)
+        next_url = session.pop("google_login_next", None)
+        if not is_safe_next_url(next_url):
+            next_url = None
+        return redirect(next_url or url_for("dashboard"))
+
     except Exception as exc:
+        db.session.rollback()
         app.logger.exception("Google OAuth callback failed")
         return oauth_error_response("google_oauth_failed", str(exc))
-
-    user = find_or_create_google_user(profile)
-    if not user:
-        return redirect(url_for("login_page", error="google_profile_incomplete"))
-
-    db.session.commit()
-    login_user(user)
-    next_url = session.pop("google_login_next", None)
-    if not is_safe_next_url(next_url):
-        next_url = None
-    return redirect(next_url or url_for("dashboard"))
 
 
 @app.route("/auth/logout", methods=["POST"])
