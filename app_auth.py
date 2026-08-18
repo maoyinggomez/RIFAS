@@ -108,6 +108,18 @@ def is_safe_next_url(target):
     return parsed.scheme == "" and parsed.netloc == "" and target.startswith("/")
 
 
+def oauth_error_response(error_code, details=""):
+    message = {
+        "google_not_configured": "Google OAuth no está configurado en el servidor.",
+        "google_oauth_failed": "Google OAuth falló durante la autenticación.",
+    }.get(error_code, "Error de autenticación con Google.")
+
+    payload = {"error": error_code, "message": message}
+    if details:
+        payload["details"] = details
+    return jsonify(payload), 500
+
+
 def sync_user_schema():
     inspector = inspect(db.engine)
     tables = inspector.get_table_names()
@@ -227,8 +239,16 @@ def google_login():
     if is_safe_next_url(next_url):
         session["google_login_next"] = next_url
 
-    redirect_uri = url_for("google_callback", _external=True, _scheme=app.config.get("PREFERRED_URL_SCHEME", "http"))
-    return google.authorize_redirect(redirect_uri)
+    try:
+        redirect_uri = url_for(
+            "google_callback",
+            _external=True,
+            _scheme=app.config.get("PREFERRED_URL_SCHEME", "http"),
+        )
+        return google.authorize_redirect(redirect_uri)
+    except Exception as exc:
+        app.logger.exception("Google OAuth login failed")
+        return oauth_error_response("google_oauth_failed", str(exc))
 
 
 @app.route("/auth/google/callback")
@@ -247,7 +267,7 @@ def google_callback():
             profile = google.get("userinfo").json()
     except Exception as exc:
         app.logger.exception("Google OAuth callback failed")
-        return jsonify({"error": "google_oauth_failed", "details": str(exc)}), 500
+        return oauth_error_response("google_oauth_failed", str(exc))
 
     user = find_or_create_google_user(profile)
     if not user:
