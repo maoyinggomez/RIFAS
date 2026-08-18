@@ -1,13 +1,12 @@
 # 🎰 RIFA Admin - Sistema de Gestión de Rifas
 
-Sistema web para gestionar rifas con autenticación de usuarios, base de datos SQLite y compatibilidad con Render.
+Sistema web para gestionar rifas con inicio de sesión con Google, base de datos SQLite y compatibilidad con Render.
 
 ## 🚀 Características
 
-- ✅ **Autenticación segura** con bcrypt
-- ✅ **Registro e inicio de sesión** de usuarios
+- ✅ **Inicio de sesión con Google** mediante OAuth
+- ✅ **Registro local** opcional para cuentas manuales
 - ✅ **Base de datos SQLite** (funciona localmente)
-- ✅ **Admin predefinido** (usuario: admin, contraseña: admin123)
 - ✅ **Sesiones seguras** con Flask-Login
 - ✅ **Listo para Render** (PostgreSQL en producción)
 
@@ -30,30 +29,38 @@ cd /Users/maoyyeison/Desktop/RIFA
 pip install -r requirements.txt
 ```
 
-### 3. Ejecutar el servidor
+### 3. Configurar Google OAuth
+
+Define estas variables de entorno:
+
+```bash
+GOOGLE_CLIENT_ID=tu-client-id
+GOOGLE_CLIENT_SECRET=tu-client-secret
+```
+
+En Google Cloud Console, autoriza este redirect URI:
+
+```bash
+http://localhost:8080/auth/google/callback
+```
+
+### 4. Ejecutar el servidor
 
 ```bash
 python app_auth.py
 ```
 
-El servidor estará disponible en: **http://localhost:5000**
+El servidor estará disponible en: **http://localhost:8080**
 
-### 4. Acceder a la aplicación
+### 5. Acceder a la aplicación
 
-- **URL:** http://localhost:5000
-- **Usuario de demostración:** `admin` / `admin123`
+- **URL:** http://localhost:8080
+- **Acceso:** botón "Continuar con Google"
 
-## 🔐 Usuarios y Contraseñas
+## 🔐 Acceso
 
-### Usuario Admin Predefinido
-
-| Campo | Valor |
-|-------|-------|
-| Usuario | `admin` |
-| Contraseña | `admin123` |
-| Email | `admin@rifa.local` |
-
-**⚠️ IMPORTANTE:** Cambia la contraseña del admin en producción.
+- El acceso principal es con Google.
+- Si usas registro local, las cuentas se crean con usuario, email y contraseña.
 
 ## 📁 Estructura del Proyecto
 
@@ -72,7 +79,7 @@ RIFA/
 
 ## 🔑 Cambiar Contraseña del Admin
 
-Para cambiar la contraseña del admin, ejecuta:
+Para cambiar la contraseña del admin local, ejecuta:
 
 ```python
 from app_auth import app, db, User
@@ -98,7 +105,9 @@ with app.app_context():
 ```
 FLASK_ENV=production
 SECRET_KEY=clave-super-segura-generada-aleatoriamente
-DATABASE_URL=postgresql://user:password@host/database
+DATABASE_URL=******host/database
+GOOGLE_CLIENT_ID=tu-client-id
+GOOGLE_CLIENT_SECRET=tu-client-secret
 ```
 
 ### 3. Conectar con GitHub y desplegar
@@ -113,9 +122,9 @@ python app_auth.py
 
 ## 🔄 Flujo de Seguridad
 
-1. **Registro:** Usuario crea cuenta con email y contraseña
-2. **Hash:** Contraseña se encripta con bcrypt (nunca se almacena en texto plano)
-3. **Login:** Se verifica la contraseña contra el hash
+1. **Login:** el usuario hace clic en Google
+2. **OAuth:** Google devuelve el perfil verificado
+3. **Cuenta:** se crea o vincula un usuario local
 4. **Sesión:** Flask-Login mantiene la sesión segura
 5. **CSRF Protection:** Protección contra ataques CSRF
 
@@ -127,6 +136,8 @@ FLASK_ENV=development
 FLASK_DEBUG=False
 SECRET_KEY=tu-clave-temporal
 DATABASE_URL=sqlite:///rifa.db
+GOOGLE_CLIENT_ID=tu-client-id
+GOOGLE_CLIENT_SECRET=tu-client-secret
 ```
 
 ### Producción (Render)
@@ -134,10 +145,19 @@ DATABASE_URL=sqlite:///rifa.db
 FLASK_ENV=production
 FLASK_DEBUG=False
 SECRET_KEY=clave-muy-segura-aqui
-DATABASE_URL=postgresql://user:pass@host/db
+DATABASE_URL=******host/db
+GOOGLE_CLIENT_ID=tu-client-id
+GOOGLE_CLIENT_SECRET=tu-client-secret
 ```
 
 ## 🆘 Solución de Problemas
+
+### Error: "ModuleNotFoundError: No module named 'authlib'"
+
+Instala las dependencias:
+```bash
+pip install -r requirements.txt
+```
 
 ### Error: "ModuleNotFoundError: No module named 'flask'"
 
@@ -163,7 +183,6 @@ app.run(debug=True, host='0.0.0.0', port=8000)  # Usa 8000 en lugar de 5000
 ## 🔒 Mejoras de Seguridad Recomendadas
 
 - [ ] Cambiar `SECRET_KEY` a una cadena aleatoria segura
-- [ ] Cambiar contraseña del admin en producción
 - [ ] Configurar HTTPS en Render
 - [ ] Implementar rate limiting para login
 - [ ] Agregar 2FA (autenticación de dos factores)
@@ -174,7 +193,7 @@ app.run(debug=True, host='0.0.0.0', port=8000)  # Usa 8000 en lugar de 5000
 - **Flask** - Framework web Python
 - **Flask-SQLAlchemy** - ORM para base de datos
 - **Flask-Login** - Gestión de sesiones
-- **Werkzeug** - Seguridad y encriptación
+- **Authlib** - OAuth con Google
 - **SQLite** - Base de datos local
 - **PostgreSQL** - Base de datos en producción (Render)
 

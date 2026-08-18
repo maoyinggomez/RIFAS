@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - RIFA Admin</title>
+    <title>Iniciar sesión - RIFA Admin</title>
     <style>
         * {
             margin: 0;
@@ -18,207 +18,139 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 24px;
         }
 
         .login-container {
             background: white;
-            border-radius: 10px;
+            border-radius: 12px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             padding: 40px;
+            text-align: center;
         }
 
         .login-container h1 {
-            text-align: center;
             color: #333;
-            margin-bottom: 30px;
+            margin-bottom: 12px;
             font-size: 28px;
         }
 
-        .form-group {
-            margin-bottom: 20px;
+        .subtitle {
+            color: #666;
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 24px;
         }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
-        }
-
-        .form-group input {
-            width: 100%;
+        .message {
+            margin-bottom: 18px;
             padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: left;
         }
 
-        .form-group input:focus {
-            outline: none;
-            border-color: #667eea;
+        .message.error {
+            color: #b42318;
+            background: #fef3f2;
+            border: 1px solid #fecaca;
         }
 
-        .login-btn {
+        .message.info {
+            color: #344054;
+            background: #f9fafb;
+            border: 1px solid #eaecf0;
+        }
+
+        .google-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
             width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 5px;
+            padding: 14px 16px;
+            border-radius: 10px;
+            border: 1px solid #d0d5dd;
+            background: #fff;
+            color: #344054;
             font-size: 16px;
             font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-            margin-bottom: 15px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
-        .login-btn:hover {
-            transform: translateY(-2px);
+        .google-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(16, 24, 40, 0.08);
         }
 
-        .login-btn:active {
-            transform: translateY(0);
+        .google-btn.disabled {
+            pointer-events: none;
+            opacity: 0.55;
+            background: #f9fafb;
         }
 
-        .error-message {
-            color: #e74c3c;
-            font-size: 14px;
-            margin-bottom: 15px;
-            text-align: center;
-            display: none;
+        .helper {
+            margin-top: 18px;
+            color: #667085;
+            font-size: 13px;
+            line-height: 1.5;
         }
 
-        .success-message {
-            color: #27ae60;
-            font-size: 14px;
-            margin-bottom: 15px;
-            text-align: center;
-            display: none;
+        .footer-link {
+            margin-top: 18px;
+            font-size: 13px;
+            color: #667085;
         }
 
-        .register-link {
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-        }
-
-        .register-link a {
+        .footer-link a {
             color: #667eea;
             text-decoration: none;
             font-weight: 600;
-        }
-
-        .register-link a:hover {
-            text-decoration: underline;
-        }
-
-        .loading {
-            display: none;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
         <h1>🎰 RIFA Admin</h1>
-        
-        <div class="error-message" id="errorMessage"></div>
-        <div class="success-message" id="successMessage"></div>
-        
-        <form id="loginForm">
-            <div class="form-group">
-                <label for="username">Usuario</label>
-                <input 
-                    type="text" 
-                    id="username" 
-                    name="username" 
-                    placeholder="Ingresa tu usuario"
-                    required
-                >
+        <p class="subtitle">Entra con tu cuenta de Google para continuar.</p>
+
+        {% if login_error %}
+            <div class="message error">
+                {% if login_error == 'google_not_configured' %}
+                    Google no está configurado todavía. Define GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET.
+                {% elif login_error == 'google_profile_incomplete' %}
+                    No pudimos leer tu perfil de Google. Intenta de nuevo.
+                {% else %}
+                    Ocurrió un error al iniciar sesión: {{ login_error }}
+                {% endif %}
             </div>
+        {% endif %}
 
-            <div class="form-group">
-                <label for="password">Contraseña</label>
-                <input 
-                    type="password" 
-                    id="password" 
-                    name="password" 
-                    placeholder="Ingresa tu contraseña"
-                    required
-                >
+        {% if google_login_enabled %}
+            <a class="google-btn" href="/auth/google/login{% if next_url %}?next={{ next_url|urlencode }}{% endif %}">
+                <span>G</span>
+                <span>Continuar con Google</span>
+            </a>
+        {% else %}
+            <div class="message info">
+                Falta configurar Google OAuth en el servidor.
             </div>
+            <a class="google-btn disabled" href="#" aria-disabled="true">
+                <span>G</span>
+                <span>Google no disponible</span>
+            </a>
+        {% endif %}
 
-            <button type="submit" class="login-btn" id="loginBtn">
-                Iniciar Sesión
-            </button>
-        </form>
-
-        <p class="register-link">
-            ¿No tienes cuenta? <a href="/register">Regístrate aquí</a>
+        <p class="helper">
+            Usa la misma cuenta que autorizaste en Google Cloud Console.
         </p>
 
-        <!-- Usuario demo -->
-        <p style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
-            <strong>Demo:</strong> admin / admin123
+        <p class="footer-link">
+            ¿Necesitas crear una cuenta manual? <a href="/register">Ir a registro</a>
         </p>
     </div>
-
-    <script>
-        const form = document.getElementById('loginForm');
-        const errorMessage = document.getElementById('errorMessage');
-        const successMessage = document.getElementById('successMessage');
-        const loginBtn = document.getElementById('loginBtn');
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-
-            errorMessage.style.display = 'none';
-            successMessage.style.display = 'none';
-            loginBtn.disabled = true;
-            loginBtn.textContent = 'Iniciando sesión...';
-
-            try {
-                const response = await fetch('/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username, password })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    successMessage.textContent = '✅ ' + data.message;
-                    successMessage.style.display = 'block';
-                    setTimeout(() => {
-                        window.location.href = '/dashboard';
-                    }, 1000);
-                } else {
-                    errorMessage.textContent = '❌ ' + data.error;
-                    errorMessage.style.display = 'block';
-                    loginBtn.disabled = false;
-                    loginBtn.textContent = 'Iniciar Sesión';
-                }
-            } catch (error) {
-                errorMessage.textContent = '❌ Error de conexión. Intenta de nuevo.';
-                errorMessage.style.display = 'block';
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Iniciar Sesión';
-            }
-        });
-
-        // Agregar efecto de carga
-        form.addEventListener('submit', (e) => {
-            if (form.checkValidity()) {
-                loginBtn.textContent = 'Cargando...';
-            }
-        });
-    </script>
 </body>
 </html>
