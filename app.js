@@ -115,10 +115,41 @@ function loadState(config) {
 
 const RAFFLES_KEY = 'rifa-collection-v1';
 
+// Función para limpiar, ordenar y desduplicar rifas por ID y por Nombre
+function cleanAndDeduplicateRaffles(rafflesList) {
+  if (!Array.isArray(rafflesList)) return [];
+
+  const mapById = new Map();
+  const mapByName = new Map();
+
+  // Ordenar por marca de tiempo más reciente primero
+  const sorted = [...rafflesList].sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+
+  const result = [];
+  for (const r of sorted) {
+    if (!r || !r.id) continue;
+    const cleanId = String(r.id);
+    const cleanName = String(r.name || '').trim().toLowerCase();
+
+    // Si el ID ya fue procesado, ignorar duplicado
+    if (mapById.has(cleanId)) continue;
+
+    // Si el nombre exacto ya existe con una versión más reciente, no duplicar
+    if (cleanName && mapByName.has(cleanName)) continue;
+
+    mapById.set(cleanId, true);
+    if (cleanName) mapByName.set(cleanName, true);
+    result.push(r);
+  }
+
+  return result;
+}
+
 function loadRaffles() {
   const saved = localStorage.getItem(RAFFLES_KEY);
   try {
-    return saved ? JSON.parse(saved) : [];
+    const list = saved ? JSON.parse(saved) : [];
+    return cleanAndDeduplicateRaffles(list);
   } catch (e) {
     console.warn('No se pudo leer las rifas guardadas.', e);
     return [];
@@ -149,8 +180,9 @@ function saveRaffles(raffles) {
     }
     return r.updatedAt ? r : { ...r, updatedAt: now };
   });
-  localStorage.setItem(RAFFLES_KEY, JSON.stringify(withTimestamps));
-  syncRafflesToServer(withTimestamps);
+  const deduped = cleanAndDeduplicateRaffles(withTimestamps);
+  localStorage.setItem(RAFFLES_KEY, JSON.stringify(deduped));
+  syncRafflesToServer(deduped);
 }
 
 function getRaffleById(id) {
@@ -186,29 +218,8 @@ function setActiveRaffle(id) {
 }
 
 function migrateExistingRaffle() {
-  const raffles = loadRaffles();
-  if (raffles.length) return; // already migrated
-  // create a clean raffle from current config (do not carry over legacy reserved/paid numbers)
-  const id = String(Date.now());
-  const raffle = {
-    id,
-    name: `Rifa ${formatDate(new Date().toISOString())}`,
-    migrated: true,
-    config: state.config,
-    numbers: initializeNumbers(state.config.numberCount || DEFAULT_NUMBER_COUNT),
-    winner: null,
-    updatedAt: Date.now()
-  };
-  raffles.push(raffle);
-  saveRaffles(raffles);
-  state.currentRaffleId = id;
-
-  // Remove legacy single-state storage to avoid showing old history elsewhere
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch (e) {
-    /* ignore */
-  }
+  // No auto-crear rifas fantasmas vacías
+  return;
 }
 
 function saveState() {
@@ -1372,6 +1383,18 @@ $('#setupForm').addEventListener('submit', async (event) => {
   const id = String(Date.now());
   const raffleNameField = String(formData.get('raffleName') || '').trim();
 
+  if (!raffleNameField) {
+    alert('Por favor ingresa un nombre para la rifa.');
+    return;
+  }
+
+  // Validar que no exista otra rifa con el mismo nombre
+  const existingRaffle = raffles.find((r) => (r.name || '').trim().toLowerCase() === raffleNameField.toLowerCase());
+  if (existingRaffle) {
+    alert(`⚠️ Ya existe una rifa con el nombre "${raffleNameField}".\nNo se admiten dos rifas con los mismos datos o nombre. Por favor usa un nombre diferente o elimina la anterior en "Mis rifas".`);
+    return;
+  }
+
   // If a file was provided in the setup modal, parse it first to detect numbering style (0-based vs 1-based)
   let parsedRows = [];
   try {
@@ -1655,6 +1678,11 @@ function renderRafflesList() {
 function deleteRaffle(id) {
   const raffles = loadRaffles().filter((r) => r.id !== id);
   saveRaffles(raffles);
+  try {
+    fetch(`/api/raffles/${id}`, { method: 'DELETE' });
+  } catch (e) {
+    console.warn('Error eliminando rifa del servidor:', e);
+  }
   if (state.currentRaffleId === id) {
     if (raffles.length) {
       setActiveRaffle(raffles[0].id);
@@ -2115,7 +2143,8 @@ async function initServerSync(isManualClick = false) {
     const res = await fetch('/api/raffles');
     if (res.ok) {
       const data = await res.json();
-      const serverRaffles = data.raffles;
+      const rawServer = data.raffles;
+      const serverRaffles = cleanAndDeduplicateRaffles(rawServer || []);
 
       if (!serverRaffles || serverRaffles.length === 0) {
         // El servidor está vacío: subir lo que tenemos localmente
@@ -2144,23 +2173,35 @@ async function initServerSync(isManualClick = false) {
 
         // 2. Comparar con rifas locales: la versión más reciente gana
         for (const l of local) {
-          const s = mergedMap.get(l.id);
-          if (!s) {
-            // Local tiene una rifa que el servidor no tiene
+          // Buscar coincidencia por ID o por Nombre idéntico
+          let match = mergedMap.get(l.id);
+          if (!match && l.name) {
+            // Buscar si ya existe una rifa con el mismo nombre en el servidor
+            for (const [sid, sval] of mergedMap.entries()) {
+              if (sval.name && sval.name.trim().toLowerCase() === l.name.trim().toLowerCase()) {
+                match = sval;
+                break;
+              }
+            }
+          }
+
+          if (!match) {
+            // Local tiene una rifa nueva que el servidor no tiene
             mergedMap.set(l.id, l);
             shouldUpload = true;
           } else {
             const localTime = Number(l.updatedAt || 0);
-            const serverTime = Number(s.updatedAt || 0);
+            const serverTime = Number(match.updatedAt || 0);
             if (localTime >= serverTime) {
               // Local es más reciente o igual: mantener local
+              mergedMap.delete(match.id);
               mergedMap.set(l.id, l);
               if (localTime > serverTime) shouldUpload = true;
             }
           }
         }
 
-        const merged = Array.from(mergedMap.values());
+        const merged = cleanAndDeduplicateRaffles(Array.from(mergedMap.values()));
 
         if (shouldUpload) {
           await fetch('/api/raffles', {
