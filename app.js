@@ -156,7 +156,21 @@ function setActiveRaffle(id) {
   const r = raffles.find((x) => x.id === id);
   if (!r) return false;
   state.config = r.config;
-  state.numbers = r.numbers;
+  const defaultPrice = Number((state.config && state.config.ticketPrice) || 0);
+
+  // Auto-reparar números que tengan valor en 0
+  state.numbers = (r.numbers || []).map((item) => {
+    const fixed = { ...item };
+    if (!fixed.value || Number(fixed.value) <= 0) {
+      fixed.value = defaultPrice;
+    }
+    if (fixed.status === 'paid' && (!fixed.downPayment || Number(fixed.downPayment) <= 0)) {
+      fixed.downPayment = fixed.value;
+    }
+    return fixed;
+  });
+
+  r.numbers = state.numbers;
   state.currentRaffleId = id;
   // persist current config to the legacy CONFIG_KEY for compatibility
   localStorage.setItem(CONFIG_KEY, JSON.stringify(state.config));
@@ -250,9 +264,14 @@ function getStatusCounts() {
 }
 
 function getTotalRevenue() {
+  const defaultPrice = Number((state.config && state.config.ticketPrice) || 0);
   return state.numbers.reduce((total, item) => {
     if (item.status === 'paid') {
-      return total + Number(item.value || 0);
+      const val = Number(item.value || 0);
+      const down = Number(item.downPayment || 0);
+      if (val > 0) return total + val;
+      if (down > 0) return total + down;
+      return total + defaultPrice;
     }
     if (item.status === 'reserved') {
       return total + Number(item.downPayment || 0);
@@ -591,9 +610,11 @@ function renderEditForm(number) {
     event.preventDefault();
     const formData = new FormData(form);
     const updated = getNumberById(number);
+    const defaultPrice = Number((state.config && state.config.ticketPrice) || 0);
     updated.name = String(formData.get('name') || '').trim();
     updated.phone = String(formData.get('phone') || '').trim();
-    updated.value = Number(formData.get('value')) || 0;
+    const formVal = Number(formData.get('value'));
+    updated.value = formVal > 0 ? formVal : defaultPrice;
     updated.downPayment = Number(formData.get('downPayment')) || 0;
     // Do not allow per-ticket playDate here; use raffle-level playDate by default
     updated.playDate = state.config.playDate || updated.playDate;
@@ -606,7 +627,7 @@ function renderEditForm(number) {
     }
 
     if (updated.status === 'paid') {
-      updated.downPayment = Math.max(updated.downPayment, updated.value || 0);
+      updated.downPayment = updated.value;
     }
 
     if (updated.status === 'reserved' && updated.downPayment > updated.value) {
@@ -641,12 +662,17 @@ function renderTicketDetails(number) {
   const detailGrid = document.createElement('div');
   detailGrid.className = 'detail-grid';
 
+  const defaultPrice = Number((state.config && state.config.ticketPrice) || 0);
+  const displayValue = Number(item.value > 0 ? item.value : defaultPrice);
+  const displayDown = Number(item.status === 'paid' ? (item.downPayment > 0 ? item.downPayment : displayValue) : (item.downPayment || 0));
+  const pendingValue = Math.max(0, displayValue - displayDown);
+
   const entries = [
     ['Cliente', item.name || '-'],
     ['Teléfono', item.phone || '-'],
-    ['Valor', formatMoney(item.value || 0)],
-    ['Abonado', formatMoney(item.downPayment || 0)],
-    ['Pendiente', formatMoney(Math.max(0, Number(item.value || 0) - Number(item.downPayment || 0)))],
+    ['Valor', formatMoney(displayValue)],
+    ['Abonado', formatMoney(displayDown)],
+    ['Pendiente', formatMoney(pendingValue)],
     ['Cuándo juega', item.playDate ? formatDate(item.playDate) : '-'],
     ['Fecha', formatDate(item.date)]
   ];
@@ -671,8 +697,10 @@ function renderTicketDetails(number) {
   markPaid.textContent = 'Marcar como pagado';
   markPaid.addEventListener('click', () => {
     const current = getNumberById(number);
+    const defaultPrice = Number((state.config && state.config.ticketPrice) || 0);
     current.status = 'paid';
-    current.downPayment = Number(current.value || 0);
+    current.value = Number(current.value > 0 ? current.value : defaultPrice);
+    current.downPayment = current.value;
     current.date = new Date().toISOString();
     if (!current.playDate) current.playDate = state.config.playDate || new Date().toISOString().slice(0, 10);
     saveState();
@@ -1252,23 +1280,23 @@ function applyImportRows(rows) {
     if (idx < 0) { ignored++; continue; }
     processed++;
     const item = raffle.numbers[idx];
+    const defaultTicketPrice = Number((raffle && raffle.config && Number(raffle.config.ticketPrice)) || Number(state.config.ticketPrice) || 0);
     if (r.name) item.name = String(r.name).trim();
     if (r.phone) item.phone = String(r.phone).trim();
-    if (r.value) item.value = Number(String(r.value).replace(/[^0-9.-]+/g,'')) || item.value;
-    if (r.downPayment) item.downPayment = Number(String(r.downPayment).replace(/[^0-9.-]+/g,'')) || item.downPayment;
+    item.value = (r.value ? Number(String(r.value).replace(/[^0-9.-]+/g,'')) : 0) || defaultTicketPrice;
+    item.downPayment = (r.downPayment ? Number(String(r.downPayment).replace(/[^0-9.-]+/g,'')) : 0);
     if (r.playDate) item.playDate = String(r.playDate).trim();
     if (r.date) item.date = String(r.date).trim();
     if (r.status) {
       const mapped = mapStatus(r.status);
       if (mapped === 'paid') {
         item.status = 'paid';
-        // ensure item.value reflects the full ticket price when marked paid
-        item.value = item.value || (raffle && raffle.config && Number(raffle.config.ticketPrice)) || Number(state.config.ticketPrice) || 0;
-        item.downPayment = item.value || item.downPayment || 0;
+        item.downPayment = item.value;
       } else if (mapped === 'reserved') {
         item.status = 'reserved';
-        if (r.downPayment) item.downPayment = Number(String(r.downPayment).replace(/[^0-9.-]+/g,'')) || item.downPayment;
       }
+    } else {
+      if (item.name) item.status = 'reserved';
     }
     // ensure date set
     if (item.status && !item.date) item.date = new Date().toISOString();
@@ -1472,21 +1500,20 @@ $('#setupForm').addEventListener('submit', async (event) => {
         const idx = findIdx(rawNumStr);
         if (idx < 0) continue;
         const item = raffle.numbers[idx];
+        const defaultTicketPrice = Number(raffle.config.ticketPrice || state.config.ticketPrice || 0);
         if (r.name) item.name = String(r.name).trim();
         if (r.phone) item.phone = String(r.phone).trim();
-        if (r.value) item.value = Number(String(r.value).replace(/[^0-9.-]+/g,'')) || item.value;
-        if (r.downPayment) item.downPayment = Number(String(r.downPayment).replace(/[^0-9.-]+/g,'')) || item.downPayment;
+        item.value = (r.value ? Number(String(r.value).replace(/[^0-9.-]+/g,'')) : 0) || defaultTicketPrice;
+        item.downPayment = (r.downPayment ? Number(String(r.downPayment).replace(/[^0-9.-]+/g,'')) : 0);
         if (r.playDate) item.playDate = String(r.playDate).trim();
         if (r.date) item.date = String(r.date).trim();
         if (r.status) {
           const mapped = mapStatus(r.status);
           if (mapped === 'paid') {
             item.status = 'paid';
-            item.value = item.value || raffle.config.ticketPrice || Number(state.config.ticketPrice) || 0;
             item.downPayment = item.value;
           } else if (mapped === 'reserved') {
             item.status = 'reserved';
-            if (r.downPayment) item.downPayment = Number(String(r.downPayment).replace(/[^0-9.-]+/g,'')) || item.downPayment;
           }
         } else {
           if (item.name) item.status = 'reserved';
