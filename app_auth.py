@@ -91,7 +91,7 @@ class RaffleData(db.Model):
     __tablename__ = "raffle_data"
 
     id = db.Column(db.String(100), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     data = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -343,7 +343,7 @@ def get_current_user():
 @app.route("/api/raffles", methods=["GET"])
 @login_required
 def get_user_raffles():
-    records = RaffleData.query.filter_by(user_id=current_user.id).order_by(RaffleData.updated_at.desc()).all()
+    records = RaffleData.query.order_by(RaffleData.updated_at.desc()).all()
     raffles = []
     for r in records:
         try:
@@ -365,16 +365,17 @@ def sync_user_raffles():
         if not rid:
             continue
         current_ids.add(rid)
-        record = RaffleData.query.filter_by(id=rid, user_id=current_user.id).first()
+        record = RaffleData.query.filter_by(id=rid).first()
         if not record:
             record = RaffleData(id=rid, user_id=current_user.id, data=json.dumps(r, ensure_ascii=False))
             db.session.add(record)
         else:
             record.data = json.dumps(r, ensure_ascii=False)
+            record.user_id = current_user.id
             record.updated_at = datetime.utcnow()
 
     if payload.get("full_sync") and current_ids:
-        all_records = RaffleData.query.filter_by(user_id=current_user.id).all()
+        all_records = RaffleData.query.all()
         for rec in all_records:
             if rec.id not in current_ids:
                 db.session.delete(rec)
@@ -386,7 +387,7 @@ def sync_user_raffles():
 @app.route("/api/raffles/<raffle_id>", methods=["DELETE"])
 @login_required
 def delete_user_raffle(raffle_id):
-    record = RaffleData.query.filter_by(id=str(raffle_id), user_id=current_user.id).first()
+    record = RaffleData.query.filter_by(id=str(raffle_id)).first()
     if record:
         db.session.delete(record)
         db.session.commit()
