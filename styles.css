@@ -651,6 +651,166 @@ h1 {
 }
 
 /* ==========================================================================
+   PANTALLA PÚBLICA & FORMATO MÓVIL COMPACTO PARA COMPARTIR
+   ========================================================================== */
+.public-screen-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+
+.public-panel {
+  width: min(96vw, 440px);
+  max-height: 92vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.public-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.public-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.public-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.public-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.public-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.public-badge.prize {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.public-badge.price {
+  background: #dcfce7;
+  color: #065f46;
+}
+
+.public-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.public-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.public-legend .legend-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.public-legend .legend-box.avail {
+  background: #ffffff;
+  border: 1.5px solid #0f172a;
+}
+
+.public-legend .legend-box.occ {
+  background: #334155;
+}
+
+.public-compact-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.public-cell {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 11px;
+  user-select: none;
+}
+
+.public-cell.available {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.public-cell.occupied {
+  background: #334155;
+  color: transparent; /* No se ve el número */
+  border: 1px solid #1e293b;
+}
+
+.public-actions-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.public-actions-bar button {
+  flex: 1;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+/* ==========================================================================
    MEDIA QUERIES: TABLETS & DESKTOPS (>= 640px y >= 1024px)
    ========================================================================== */
 @media (min-width: 640px) {

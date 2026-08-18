@@ -1737,7 +1737,7 @@ if (drawBtn) {
   });
 }
 
-// Public view (pantalla) button — opens a full-screen simplified grid for sharing/screen-sharing
+// Botón de Pantalla Pública (formato móvil compacto para compartir)
 const publicViewBtn = $('#publicViewBtn');
 if (publicViewBtn) {
   publicViewBtn.addEventListener('click', () => {
@@ -1746,181 +1746,304 @@ if (publicViewBtn) {
 }
 
 function openPublicView() {
-  // Create a public overlay that uses the same app styling (stats + board)
   const existing = document.querySelector('.public-screen-overlay');
   if (existing) existing.remove();
 
+  const currentRaffle = getRaffleById(state.currentRaffleId) || {};
+  const raffleName = currentRaffle.name || state.config.name || 'Rifa';
+  const prize = state.config.prize || (currentRaffle.config && currentRaffle.config.prize) || '';
+  const ticketPrice = Number(state.config.ticketPrice || (currentRaffle.config && currentRaffle.config.ticketPrice) || 0);
+  const playDate = state.config.playDate || (currentRaffle.config && currentRaffle.config.playDate) || '';
+
   const overlay = document.createElement('div');
   overlay.className = 'public-screen-overlay';
-  Object.assign(overlay.style, {
-    position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.08)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px'
-  });
 
-  // central panel that mimics app layout
   const panel = document.createElement('div');
-  panel.style.width = 'min(1200px, 96vw)';
-  panel.style.maxHeight = '94vh';
-  panel.style.overflow = 'auto';
-  panel.className = 'board-wrap public-panel';
+  panel.className = 'public-panel';
 
-  // top controls (title + actions)
-  const top = document.createElement('div');
-  top.style.display = 'flex';
-  top.style.justifyContent = 'space-between';
-  top.style.alignItems = 'center';
-  top.style.marginBottom = '12px';
+  // Encabezado
+  const header = document.createElement('div');
+  header.className = 'public-header';
+
+  const headerTop = document.createElement('div');
+  headerTop.className = 'public-header-top';
 
   const title = document.createElement('h3');
-  title.textContent = (getRaffleById(state.currentRaffleId) || {}).name || 'Rifa';
-  title.style.margin = '0';
-  top.appendChild(title);
+  title.textContent = raffleName;
+  headerTop.appendChild(title);
 
-  const actions = document.createElement('div');
-  actions.style.display = 'flex';
-  actions.style.gap = '8px';
+  const closeIconBtn = document.createElement('button');
+  closeIconBtn.className = 'icon-button';
+  closeIconBtn.textContent = '✕';
+  closeIconBtn.addEventListener('click', () => overlay.remove());
+  headerTop.appendChild(closeIconBtn);
+  header.appendChild(headerTop);
 
-  const fsBtn = document.createElement('button');
-  fsBtn.className = 'secondary-btn';
-  fsBtn.textContent = 'Pantalla completa';
-  fsBtn.addEventListener('click', async () => {
-    try { if (panel.requestFullscreen) await panel.requestFullscreen(); else if (panel.webkitRequestFullscreen) panel.webkitRequestFullscreen(); } catch (e) { console.warn(e); }
+  // Badges informativos
+  const badges = document.createElement('div');
+  badges.className = 'public-badges';
+  if (prize) {
+    const b = document.createElement('span');
+    b.className = 'public-badge prize';
+    b.textContent = `🎁 ${prize}`;
+    badges.appendChild(b);
+  }
+  if (ticketPrice > 0) {
+    const b = document.createElement('span');
+    b.className = 'public-badge price';
+    b.textContent = `🎟️ ${formatMoney(ticketPrice)}`;
+    badges.appendChild(b);
+  }
+  if (playDate) {
+    const b = document.createElement('span');
+    b.className = 'public-badge';
+    b.textContent = `📅 Juega: ${formatDate(playDate)}`;
+    badges.appendChild(b);
+  }
+  header.appendChild(badges);
+
+  // Barra de leyenda
+  const legend = document.createElement('div');
+  legend.className = 'public-legend';
+  legend.innerHTML = `
+    <span><span class="legend-box avail"></span> <strong>Disponible</strong></span>
+    <span><span class="legend-box occ"></span> <strong>Ocupado</strong></span>
+  `;
+  header.appendChild(legend);
+
+  panel.appendChild(header);
+
+  // Cuadrícula compacta de 10 columnas
+  const grid = document.createElement('div');
+  grid.className = 'public-compact-grid';
+
+  const nums = state.numbers || [];
+  nums.forEach((n) => {
+    const cell = document.createElement('div');
+    const isAvail = (n.status === 'available');
+    cell.className = `public-cell ${isAvail ? 'available' : 'occupied'}`;
+    // SOLO mostrar el número si está DISPONIBLE; si está ocupado se deja en blanco
+    cell.textContent = isAvail ? String(n.number).padStart(2, '0') : '';
+    grid.appendChild(cell);
   });
 
-  const downloadBtn = document.createElement('button');
-  downloadBtn.className = 'primary-btn';
-  downloadBtn.textContent = 'Descargar imagen';
-  downloadBtn.addEventListener('click', () => {
-    try { downloadPublicGridImage(); } catch (e) { console.error('Download failed', e); alert('No fue posible descargar la imagen. Revisa la consola.'); }
+  panel.appendChild(grid);
+
+  // Botones de acción
+  const actions = document.createElement('div');
+  actions.className = 'public-actions-bar';
+
+  const shareBtn = document.createElement('button');
+  shareBtn.className = 'primary-btn';
+  shareBtn.innerHTML = '📲 Compartir imagen';
+  shareBtn.addEventListener('click', async () => {
+    shareBtn.textContent = '⏳ Generando...';
+    try {
+      await generateAndSharePublicImage();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      shareBtn.innerHTML = '📲 Compartir imagen';
+    }
   });
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'secondary-btn';
   closeBtn.textContent = 'Cerrar';
-  closeBtn.addEventListener('click', () => {
-    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
-    overlay.remove();
-  });
+  closeBtn.addEventListener('click', () => overlay.remove());
 
-  actions.appendChild(fsBtn);
-  actions.appendChild(downloadBtn);
+  actions.appendChild(shareBtn);
   actions.appendChild(closeBtn);
-  top.appendChild(actions);
+  panel.appendChild(actions);
 
-  panel.appendChild(top);
-
-  // render stats using same structure/classes so it looks like the app
-  const statsBar = document.createElement('section');
-  statsBar.className = 'stats-bar';
-  const counts = getStatusCounts();
-  const revenue = getTotalRevenue();
-
-  const createStat = (cls, number, label) => {
-    const s = document.createElement('div');
-    s.className = `stat ${cls}`;
-    const dot = document.createElement('span'); dot.className = 'dot';
-    const strong = document.createElement('strong'); strong.textContent = number;
-    const small = document.createElement('small'); small.textContent = label;
-    s.appendChild(dot); s.appendChild(strong); s.appendChild(small);
-    return s;
-  };
-
-  statsBar.appendChild(createStat('available', counts.available || 0, 'Disponibles'));
-  statsBar.appendChild(createStat('reserved', counts.reserved || 0, 'Reservados'));
-  statsBar.appendChild(createStat('paid', counts.paid || 0, 'Pagados'));
-  const total = state.numbers.length || 1;
-  const sold = (counts.reserved || 0) + (counts.paid || 0);
-  const percent = Math.round((sold / total) * 100);
-  statsBar.appendChild(createStat('percent', `${percent}%`, '% vendidos'));
-  const totalStat = document.createElement('div'); totalStat.className = 'stat total';
-  const small = document.createElement('small'); small.textContent = 'Total recaudado';
-  const strong = document.createElement('strong'); strong.textContent = formatMoney(revenue);
-  totalStat.appendChild(small); totalStat.appendChild(strong);
-  statsBar.appendChild(totalStat);
-
-  panel.appendChild(statsBar);
-
-  // board: reuse existing classes so styling matches
-  const board = document.createElement('div');
-  board.className = 'number-grid public-number-grid';
-  board.style.gridTemplateColumns = getComputedStyle(document.querySelector('.number-grid'))?.gridTemplateColumns || 'repeat(8, 1fr)';
-
-  // populate numbers as buttons with same classes as main UI
-  (state.numbers || []).forEach((n) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `number-btn ${n.status || 'available'}`;
-    btn.textContent = String(n.number).padStart(2, '0');
-    btn.disabled = true; // prevent clicks in public view
-    board.appendChild(btn);
-  });
-
-  panel.appendChild(board);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
-  overlay.tabIndex = -1; overlay.focus();
+}
 
-  // make download recreate layout with same CSS variables
-  function downloadPublicGridImage() {
-    // Delegate to existing image generator which reads CSS variables; keep behavior simple by reusing previous function logic
-    const cs = getComputedStyle(document.documentElement);
-    const colors = {
-      overlayBg: cs.getPropertyValue('--bg')?.trim() || '#ffffff',
-      available: cs.getPropertyValue('--available')?.trim() || '#f1f5f9',
-      paid: cs.getPropertyValue('--paid')?.trim() || '#d7f5df',
-      reserved: cs.getPropertyValue('--reserved')?.trim() || '#fff4bf',
-      cellText: cs.getPropertyValue('--cell-text-dark')?.trim() || '#10233c'
-    };
-    // reuse previous canvas drawing but with improved cols calculation to match grid columns
-    const nums = state.numbers || [];
-    if (!nums.length) { alert('No hay números para exportar.'); return; }
-    const gridEl = document.querySelector('.number-grid');
-    // determine columns from CSS grid-template-columns if available
-    let cols = 8;
-    try {
-      const gt = getComputedStyle(gridEl).gridTemplateColumns;
-      if (gt) cols = gt.split(' ').length || cols;
-    } catch (e) {}
-    const total = nums.length;
-    const rows = Math.ceil(total / cols);
-    const cell = 120;
-    const gap = 8;
-    const padding = 20;
-    const DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
-    const canvasW = cols * cell + padding * 2 + (cols - 1) * gap;
-    const canvasH = rows * cell + padding * 2 + (rows - 1) * gap + 40; // extra for title
-    const canvas = document.createElement('canvas');
-    canvas.width = canvasW * DPR; canvas.height = canvasH * DPR; canvas.style.width = `${canvasW}px`; canvas.style.height = `${canvasH}px`;
-    const ctx = canvas.getContext('2d'); ctx.scale(DPR, DPR);
+// Generador de imagen compacta en alta resolución para compartir
+async function generateAndSharePublicImage() {
+  const currentRaffle = getRaffleById(state.currentRaffleId) || {};
+  const raffleName = currentRaffle.name || state.config.name || 'Rifa';
+  const prize = state.config.prize || (currentRaffle.config && currentRaffle.config.prize) || '';
+  const ticketPrice = Number(state.config.ticketPrice || (currentRaffle.config && currentRaffle.config.ticketPrice) || 0);
+  const playDate = state.config.playDate || (currentRaffle.config && currentRaffle.config.playDate) || '';
+  const nums = state.numbers || [];
 
-    // background (use panel background)
-    ctx.fillStyle = colors.overlayBg; ctx.fillRect(0, 0, canvasW, canvasH);
-    // title
-    ctx.fillStyle = colors.cellText; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left'; ctx.fillText((getRaffleById(state.currentRaffleId) || {}).name || 'Rifa', padding, 18);
+  if (!nums.length) {
+    alert('No hay números para exportar.');
+    return;
+  }
 
-    // draw cells
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (let i = 0; i < total; i++) {
-      const r = Math.floor(i / cols);
-      const c = i % cols;
-      const x = padding + c * (cell + gap);
-      const y = padding + 24 + r * (cell + gap);
-      const n = nums[i];
-      let bg = colors.available; if (n.status === 'paid') bg = colors.paid; else if (n.status === 'reserved') bg = colors.reserved;
-      const fg = colors.cellText || '#10233c';
-      // rounded rect
-      roundRect(ctx, x, y, cell, cell, 10); ctx.fillStyle = bg; ctx.fill();
-      // number
-      ctx.fillStyle = fg; ctx.font = '700 20px Arial'; ctx.fillText(String(n.number).padStart(2, '0'), x + cell/2, y + cell/2 - 6);
+  // Dimensiones compactas formato móvil vertical (720px de ancho)
+  const cols = 10;
+  const total = nums.length;
+  const rows = Math.ceil(total / cols);
+
+  const canvasW = 720;
+  const paddingX = 24;
+  const gap = 5;
+  const cellSize = Math.floor((canvasW - (paddingX * 2) - ((cols - 1) * gap)) / cols); // ~62px
+
+  const headerHeight = 140;
+  const gridHeight = rows * cellSize + (rows - 1) * gap;
+  const footerHeight = 60;
+  const canvasH = headerHeight + gridHeight + footerHeight + 20;
+
+  const DPR = 2; // Alta resolución nítida
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW * DPR;
+  canvas.height = canvasH * DPR;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+
+  // 1. Fondo degradado profesional
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, canvasH);
+  bgGrad.addColorStop(0, '#0f172a');
+  bgGrad.addColorStop(0.5, '#1e293b');
+  bgGrad.addColorStop(1, '#0f172a');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // 2. Encabezado
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Título de la rifa
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px -apple-system, sans-serif';
+  ctx.fillText(raffleName, canvasW / 2, 34);
+
+  // Subtítulo con premio, precio y fecha
+  const subParts = [];
+  if (prize) subParts.push(`🎁 ${prize}`);
+  if (ticketPrice > 0) subParts.push(`🎟️ Boleta: ${formatMoney(ticketPrice)}`);
+  if (playDate) subParts.push(`📅 Sorteo: ${formatDate(playDate)}`);
+  const subText = subParts.join('  •  ') || 'Elige tus números';
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = '600 15px -apple-system, sans-serif';
+  ctx.fillText(subText, canvasW / 2, 68);
+
+  // Barra de leyenda en el gráfico
+  const legendY = 104;
+  // Caja disponible
+  roundRect(ctx, canvasW / 2 - 195, legendY - 9, 18, 18, 4);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 13px -apple-system, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('DISPONIBLE (con número)', canvasW / 2 - 170, legendY);
+
+  // Caja ocupado
+  roundRect(ctx, canvasW / 2 + 45, legendY - 9, 18, 18, 4);
+  ctx.fillStyle = '#334155';
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.stroke();
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('OCUPADO (sin número)', canvasW / 2 + 70, legendY);
+
+  // 3. Grid de números compactos
+  const startY = headerHeight + 10;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (let i = 0; i < total; i++) {
+    const r = Math.floor(i / cols);
+    const c = i % cols;
+    const x = paddingX + c * (cellSize + gap);
+    const y = startY + r * (cellSize + gap);
+    const n = nums[i];
+    const isAvail = (n.status === 'available');
+
+    if (isAvail) {
+      // Disponible: Cuadro blanco nítido con número legible
+      roundRect(ctx, x, y, cellSize, cellSize, 7);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 20px -apple-system, sans-serif';
+      ctx.fillText(String(n.number).padStart(2, '0'), x + cellSize / 2, y + cellSize / 2);
+    } else {
+      // Ocupado: Cuadro oscuro/opaco SIN NÚMERO
+      roundRect(ctx, x, y, cellSize, cellSize, 7);
+      ctx.fillStyle = '#334155';
+      ctx.fill();
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // NO se dibuja texto para que quede limpio y ciego
+    }
+  }
+
+  // 4. Pie de imagen
+  const footerY = canvasH - 24;
+  ctx.fillStyle = '#64748b';
+  ctx.font = '500 13px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🎰 Rifa Oficial • Separa tu número disponible antes de que se agote', canvasW / 2, footerY);
+
+  // 5. Compartir / Descargar
+  canvas.toBlob(async (blob) => {
+    if (!blob) {
+      alert('No fue posible generar la imagen.');
+      return;
+    }
+    const cleanRaffleName = raffleName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'rifa';
+    const fileName = `${cleanRaffleName}-disponibles.png`;
+    const file = new File([blob], fileName, { type: 'image/png' });
+
+    // En móviles (iOS / Android): compartir directamente
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: raffleName,
+          text: `🎟️ ${raffleName} - Números disponibles:`,
+          files: [file]
+        });
+        return;
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.warn('Share falló, descargando archivo...', err);
+        } else {
+          return;
+        }
+      }
     }
 
-    canvas.toBlob((blob) => {
-      if (!blob) { alert('No fue posible generar la imagen.'); return; }
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a'); link.href = url; link.download = `${(getRaffleById(state.currentRaffleId) || {}).name || 'rifa'}-pantalla.png`;
-      document.body.appendChild(link); link.click(); setTimeout(() => { try { URL.revokeObjectURL(url); document.body.removeChild(link); } catch(e){} }, 1000);
-    }, 'image/png');
+    // Descarga directa
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+      } catch (e) {}
+    }, 1000);
+  }, 'image/png');
 
-    function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function roundRect(context, x, y, w, h, radius) {
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.arcTo(x + w, y, x + w, y + h, radius);
+    context.arcTo(x + w, y + h, x, y + h, radius);
+    context.arcTo(x, y + h, x, y, radius);
+    context.arcTo(x, y, x + w, y, radius);
+    context.closePath();
   }
 }
 
