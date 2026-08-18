@@ -2,17 +2,20 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Rifa Admin</title>
-    <link rel="stylesheet" href="styles.css?v=20260818_6" />
+    <link rel="stylesheet" href="styles.css?v=20260818_responsive_1" />
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow"></p>
-          <h1 id="raffleTitle"></h1>
+        <div class="topbar-header">
+          <div>
+            <p class="eyebrow"></p>
+            <h1 id="raffleTitle"></h1>
+          </div>
+          <button id="logoutBtn" class="logout-btn" aria-label="Cerrar sesión">🚪 Salir</button>
         </div>
 
         <div class="topbar-actions">
@@ -21,12 +24,13 @@
             <input id="searchInput" type="text" placeholder="Buscar número, nombre o teléfono" />
           </label>
 
-        <button id="syncBtn" class="secondary-btn" aria-label="Sincronizar con la nube">☁️ Sincronizar</button>
-        <button id="publicViewBtn" class="secondary-btn" aria-label="Pantalla pública">📺 Pantalla</button>
-        <button id="drawBtn" class="secondary-btn" aria-label="Sortear">Sortear</button>
-        <button id="newRaffleBtn" class="primary-btn" aria-label="Nueva rifa">+ Nueva rifa</button>
-        <button id="manageRafflesBtn" class="secondary-btn" aria-label="Mis rifas">Mis rifas</button>
-        <button id="logoutBtn" class="logout-btn" aria-label="Cerrar sesión">🚪 Salir</button>
+          <div class="action-buttons-group">
+            <button id="syncBtn" class="secondary-btn" aria-label="Sincronizar con la nube">☁️ Sincronizar</button>
+            <button id="newRaffleBtn" class="primary-btn" aria-label="Nueva rifa">+ Nueva rifa</button>
+            <button id="manageRafflesBtn" class="secondary-btn" aria-label="Mis rifas">Mis rifas</button>
+            <button id="drawBtn" class="secondary-btn" aria-label="Sortear">Sortear</button>
+            <button id="publicViewBtn" class="secondary-btn" aria-label="Pantalla pública">📺 Pantalla</button>
+          </div>
         </div>
       </header>
 
@@ -164,7 +168,7 @@
       </div>
     </div>
 
-    <script src="app.js?v=20260818_6"></script>
+    <script src="app.js?v=20260818_responsive_1"></script>
     <script>
       // Logout functionality
       document.getElementById('logoutBtn').addEventListener('click', async () => {
