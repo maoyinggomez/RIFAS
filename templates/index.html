@@ -24,6 +24,7 @@
         <button id="drawBtn" class="secondary-btn" aria-label="Sortear">Sortear</button>
         <button id="newRaffleBtn" class="primary-btn" aria-label="Nueva rifa">+ Nueva rifa</button>
         <button id="manageRafflesBtn" class="secondary-btn" aria-label="Mis rifas">Mis rifas</button>
+        <button id="logoutBtn" class="logout-btn" aria-label="Cerrar sesión">🚪 Salir</button>
         </div>
       </header>
 
@@ -162,5 +163,30 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+      // Logout functionality
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+          try {
+            const response = await fetch('/auth/logout', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+            
+            if (response.ok) {
+              // Redirect to login page
+              window.location.href = '/login';
+            } else {
+              alert('Error al cerrar sesión');
+            }
+          } catch (error) {
+            console.error('Error:', error);
+            alert('Error de conexión');
+          }
+        }
+      });
+    </script>
   </body>
 </html>

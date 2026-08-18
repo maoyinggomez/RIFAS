@@ -553,3 +553,26 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Logout button styling */
+.logout-btn {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-left: 10px;
+}
+
+.logout-btn:hover {
+  background-color: #c0392b;
+  transform: scale(1.05);
+}
+
+.logout-btn:active {
+  transform: scale(0.98);
+}

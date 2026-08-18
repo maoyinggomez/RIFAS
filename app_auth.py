@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
+import bcrypt
 from datetime import datetime
 import os
 from dotenv import load_dotenv
@@ -28,10 +28,10 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -150,4 +150,4 @@ with app.app_context():
         print("✅ Usuario admin creado: admin / admin123")
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=8080)
