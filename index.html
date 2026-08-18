@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rifa Admin</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow"></p>
+          <h1 id="raffleTitle"></h1>
+        </div>
+
+        <div class="topbar-actions">
+          <label class="search-box" aria-label="Buscar número, nombre o teléfono">
+            <span>🔍</span>
+            <input id="searchInput" type="text" placeholder="Buscar número, nombre o teléfono" />
+          </label>
+
+        <button id="publicViewBtn" class="secondary-btn" aria-label="Pantalla pública">📺 Pantalla</button>
+        <button id="drawBtn" class="secondary-btn" aria-label="Sortear">Sortear</button>
+        <button id="newRaffleBtn" class="primary-btn" aria-label="Nueva rifa">+ Nueva rifa</button>
+        <button id="manageRafflesBtn" class="secondary-btn" aria-label="Mis rifas">Mis rifas</button>
+        </div>
+      </header>
+
+      <section class="stats-bar" aria-label="Estadísticas principales">
+        <div class="stat available">
+          <span class="dot"></span>
+          <strong id="availableCount">0</strong>
+          <small>Disponibles</small>
+        </div>
+        <div class="stat reserved">
+          <span class="dot"></span>
+          <strong id="reservedCount">0</strong>
+          <small>Reservados</small>
+        </div>
+        <div class="stat paid">
+          <span class="dot"></span>
+          <strong id="paidCount">0</strong>
+          <small>Pagados</small>
+        </div>
+        <div class="stat percent">
+          <span class="dot"></span>
+          <strong id="percentSold">0%</strong>
+          <small>% vendidos</small>
+        </div>
+        <div class="stat total">
+          <small>Total recaudado</small>
+          <strong id="revenueTotal">$0</strong>
+        </div>
+      </section>
+
+      <section id="searchResults" class="search-results hidden" aria-live="polite"></section>
+
+      <main class="board-wrap">
+        <div id="numberGrid" class="number-grid" aria-label="Tabla de la rifa"></div>
+      </main>
+    </div>
+
+    <div id="setupModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close="true"></div>
+      <div class="modal-panel setup-panel" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+        <div class="modal-header">
+          <h2 id="setupTitle">Crear rifa</h2>
+          <button id="closeSetupBtn" class="icon-button" aria-label="Cerrar">✕</button>
+        </div>
+
+        <form id="setupForm" class="form-grid">
+          <div class="field">
+            <label>¿Cómo será la rifa?</label>
+            <div class="option-group">
+              <label class="choice-card">
+                <input type="radio" name="raffleMode" value="rifada" checked />
+                <span>Rifada</span>
+              </label>
+              <label class="choice-card">
+                <input type="radio" name="raffleMode" value="loteria" />
+                <span>Sorteada por lotería</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="ticketPrice">Valor de la boleta</label>
+            <input id="ticketPrice" type="number" name="ticketPrice" min="0" step="1000" value="5000" required />
+          </div>
+
+          <div class="field">
+            <label for="numberCount">Cantidad de números</label>
+            <input id="numberCount" type="number" name="numberCount" min="1" step="1" value="160" required />
+          </div>
+
+          <div class="field">
+            <label for="raffleName">Nombre de la rifa</label>
+            <input id="raffleName" type="text" name="raffleName" placeholder="Ej: Rifa Zoom Agosto" />
+          </div>
+
+          <div class="field">
+            <label for="prize">Premio</label>
+            <input id="prize" type="text" name="prize" placeholder="Ej: Patineta eléctrica Xiaomi" />
+          </div>
+
+          <div class="field">
+            <label for="raffleDate">¿Cuándo será el sorteo?</label>
+            <input id="raffleDate" type="date" name="raffleDate" value="" required />
+          </div>
+
+          <div class="field">
+            <label for="startAtZero">Iniciar numeración en 00</label>
+            <input id="startAtZero" type="checkbox" name="startAtZero" />
+            <small>Marca si tus números comienzan en 0 (ej. 00, 01, 02). Si no estás seguro, deja sin marcar (inicia en 01).</small>
+          </div>
+
+          <div class="field">
+            <label for="productImage">Foto del fondo del producto</label>
+            <input id="productImage" type="file" accept="image/*" />
+          </div>
+
+          <div class="field preview-wrapper hidden" id="productPreviewWrap">
+            <img id="productPreview" alt="Vista previa del fondo del producto" />
+          </div>
+
+          <div class="field">
+            <label for="setupImportFile">Importar lista (CSV/XLSX)</label>
+            <input id="setupImportFile" type="file" accept=".csv,.xlsx" />
+            <small>El archivo debe contener columnas: número, nombre y teléfono. Número y nombre son obligatorios.</small>
+          </div>
+
+          <div class="field actions">
+            <button type="submit" class="primary-btn">Crear rifa</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="numberModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close="true"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-header">
+          <h2 id="modalTitle">Número</h2>
+          <button id="closeModalBtn" class="icon-button" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div id="modalBody" class="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Modal: Mis rifas -->
+    <div id="rafflesModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close="true"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="rafflesTitle">
+        <div class="modal-header">
+          <h2 id="rafflesTitle">Mis rifas</h2>
+          <button id="closeRafflesBtn" class="icon-button" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="rafflesBody" class="modal-body"></div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
