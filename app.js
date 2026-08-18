@@ -125,8 +125,25 @@ function loadRaffles() {
   }
 }
 
+let syncTimeout = null;
+function syncRafflesToServer(raffles) {
+  clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(async () => {
+    try {
+      await fetch('/api/raffles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raffles, full_sync: true })
+      });
+    } catch (e) {
+      console.warn('Error sincronizando con el servidor:', e);
+    }
+  }, 400);
+}
+
 function saveRaffles(raffles) {
   localStorage.setItem(RAFFLES_KEY, JSON.stringify(raffles));
+  syncRafflesToServer(raffles);
 }
 
 function getRaffleById(id) {
@@ -1918,3 +1935,31 @@ if (initialRaffles && initialRaffles.length) {
 }
 
 renderEverything();
+
+// Sincronización automática con la base de datos en la nube (Render)
+async function initServerSync() {
+  try {
+    const res = await fetch('/api/raffles');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.raffles && Array.isArray(data.raffles) && data.raffles.length > 0) {
+        localStorage.setItem(RAFFLES_KEY, JSON.stringify(data.raffles));
+        if (!state.currentRaffleId || !data.raffles.some(r => r.id === state.currentRaffleId)) {
+          setActiveRaffle(data.raffles[0].id);
+        } else {
+          setActiveRaffle(state.currentRaffleId);
+        }
+      } else {
+        // Si el servidor está vacío pero este dispositivo tiene datos locales, subirlos
+        const local = loadRaffles();
+        if (local && local.length > 0) {
+          syncRafflesToServer(local);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error al sincronizar con el servidor:', err);
+  }
+}
+
+initServerSync();

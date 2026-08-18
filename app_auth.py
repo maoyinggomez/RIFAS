@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import os
 import re
 import secrets
@@ -84,6 +85,15 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+class RaffleData(db.Model):
+    __tablename__ = "raffle_data"
+
+    id = db.Column(db.String(100), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    data = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 @login_manager.user_loader
@@ -328,6 +338,59 @@ def get_current_user():
         ),
         200,
     )
+
+
+@app.route("/api/raffles", methods=["GET"])
+@login_required
+def get_user_raffles():
+    records = RaffleData.query.filter_by(user_id=current_user.id).order_by(RaffleData.updated_at.desc()).all()
+    raffles = []
+    for r in records:
+        try:
+            raffles.append(json.loads(r.data))
+        except Exception:
+            pass
+    return jsonify({"raffles": raffles}), 200
+
+
+@app.route("/api/raffles", methods=["POST"])
+@login_required
+def sync_user_raffles():
+    payload = request.get_json() or {}
+    raffles = payload.get("raffles", [])
+
+    current_ids = set()
+    for r in raffles:
+        rid = str(r.get("id") or "")
+        if not rid:
+            continue
+        current_ids.add(rid)
+        record = RaffleData.query.filter_by(id=rid, user_id=current_user.id).first()
+        if not record:
+            record = RaffleData(id=rid, user_id=current_user.id, data=json.dumps(r, ensure_ascii=False))
+            db.session.add(record)
+        else:
+            record.data = json.dumps(r, ensure_ascii=False)
+            record.updated_at = datetime.utcnow()
+
+    if payload.get("full_sync") and current_ids:
+        all_records = RaffleData.query.filter_by(user_id=current_user.id).all()
+        for rec in all_records:
+            if rec.id not in current_ids:
+                db.session.delete(rec)
+
+    db.session.commit()
+    return jsonify({"status": "ok", "count": len(raffles)}), 200
+
+
+@app.route("/api/raffles/<raffle_id>", methods=["DELETE"])
+@login_required
+def delete_user_raffle(raffle_id):
+    record = RaffleData.query.filter_by(id=str(raffle_id), user_id=current_user.id).first()
+    if record:
+        db.session.delete(record)
+        db.session.commit()
+    return jsonify({"status": "ok"}), 200
 
 
 @app.route("/")
