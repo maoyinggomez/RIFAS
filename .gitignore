@@ -1,0 +1,42 @@
+# Base de datos
+*.db
+*.sqlite
+*.sqlite3
+
+# Entorno virtual
+venv/
+env/
+.venv
+.env
+
+# Variables de entorno local
+.env.local
+.env.*.local
+
+# Caché y archivos generados
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporal
+tmp/
+temp/
+*.tmp
