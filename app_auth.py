@@ -18,6 +18,7 @@ from flask_login import (
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 
@@ -34,6 +35,8 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 if os.getenv("FLASK_ENV") == "production":
     app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["PREFERRED_URL_SCHEME"] = "https"
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -224,7 +227,7 @@ def google_login():
     if is_safe_next_url(next_url):
         session["google_login_next"] = next_url
 
-    redirect_uri = url_for("google_callback", _external=True)
+    redirect_uri = url_for("google_callback", _external=True, _scheme=app.config.get("PREFERRED_URL_SCHEME", "http"))
     return google.authorize_redirect(redirect_uri)
 
 
@@ -236,11 +239,15 @@ def google_callback():
     if request.args.get("error"):
         return redirect(url_for("login_page", error=request.args.get("error")))
 
-    token = google.authorize_access_token()
-    profile = google.parse_id_token(token)
+    try:
+        token = google.authorize_access_token()
+        profile = google.parse_id_token(token)
 
-    if not profile:
-        profile = google.get("userinfo").json()
+        if not profile:
+            profile = google.get("userinfo").json()
+    except Exception as exc:
+        app.logger.exception("Google OAuth callback failed")
+        return jsonify({"error": "google_oauth_failed", "details": str(exc)}), 500
 
     user = find_or_create_google_user(profile)
     if not user:
