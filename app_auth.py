@@ -17,7 +17,7 @@ from flask_login import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
-import bcrypt
+from werkzeug.security import check_password_hash, generate_password_hash
 
 load_dotenv()
 
@@ -68,16 +68,10 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
 
     def set_password(self, password):
-        self.password_hash = bcrypt.hashpw(
-            password.encode("utf-8"),
-            bcrypt.gensalt(),
-        ).decode("utf-8")
+        self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
-        return bcrypt.checkpw(
-            password.encode("utf-8"),
-            self.password_hash.encode("utf-8"),
-        )
+        return check_password_hash(self.password_hash, password)
 
 
 @login_manager.user_loader
