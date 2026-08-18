@@ -22,6 +22,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 
+IS_PRODUCTION = bool(os.getenv("RENDER") or os.getenv("FLASK_ENV") == "production" or os.getenv("ENVIRONMENT") == "production")
+
 raw_secret = (os.getenv("SECRET_KEY") or os.getenv("FLASK_SECRET_KEY") or "").strip()
 secret_key = raw_secret if len(raw_secret) > 0 else "rifa-super-secret-key-render-production-2026-xyz"
 
