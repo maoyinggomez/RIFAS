@@ -22,17 +22,17 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 
-IS_PRODUCTION = bool(os.getenv("RENDER") or os.getenv("FLASK_ENV") == "production" or os.getenv("ENVIRONMENT") == "production")
+raw_secret = (os.getenv("SECRET_KEY") or os.getenv("FLASK_SECRET_KEY") or "").strip()
+secret_key = raw_secret if len(raw_secret) > 0 else "rifa-super-secret-key-render-production-2026-xyz"
 
 app = Flask(__name__, static_folder=".", static_url_path="")
+app.secret_key = secret_key
+app.config["SECRET_KEY"] = secret_key
 
 database_url = os.getenv("DATABASE_URL", "sqlite:///rifa.db")
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-secret_key = os.getenv("SECRET_KEY") or os.getenv("FLASK_SECRET_KEY") or "tu-clave-super-secreta-cambiar-en-produccion"
-app.config["SECRET_KEY"] = secret_key
-app.secret_key = secret_key
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
