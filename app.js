@@ -138,12 +138,19 @@ function syncRafflesToServer(raffles) {
     } catch (e) {
       console.warn('Error sincronizando con el servidor:', e);
     }
-  }, 400);
+  }, 150);
 }
 
 function saveRaffles(raffles) {
-  localStorage.setItem(RAFFLES_KEY, JSON.stringify(raffles));
-  syncRafflesToServer(raffles);
+  const now = Date.now();
+  const withTimestamps = (raffles || []).map((r) => {
+    if (r.id === state.currentRaffleId) {
+      return { ...r, updatedAt: now };
+    }
+    return r.updatedAt ? r : { ...r, updatedAt: now };
+  });
+  localStorage.setItem(RAFFLES_KEY, JSON.stringify(withTimestamps));
+  syncRafflesToServer(withTimestamps);
 }
 
 function getRaffleById(id) {
@@ -189,7 +196,8 @@ function migrateExistingRaffle() {
     migrated: true,
     config: state.config,
     numbers: initializeNumbers(state.config.numberCount || DEFAULT_NUMBER_COUNT),
-    winner: null
+    winner: null,
+    updatedAt: Date.now()
   };
   raffles.push(raffle);
   saveRaffles(raffles);
@@ -204,17 +212,18 @@ function migrateExistingRaffle() {
 }
 
 function saveState() {
-  // If we have a current raffle, update it inside the raffles collection
+  const now = Date.now();
   if (state.currentRaffleId) {
     const raffles = loadRaffles();
     const idx = raffles.findIndex((r) => r.id === state.currentRaffleId);
     if (idx >= 0) {
       raffles[idx].numbers = state.numbers;
+      raffles[idx].config = state.config;
+      raffles[idx].updatedAt = now;
       saveRaffles(raffles);
       return;
     }
   }
-  // Fallback for legacy single-state storage
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.numbers));
 }
 
@@ -1963,30 +1972,104 @@ if (initialRaffles && initialRaffles.length) {
 
 renderEverything();
 
-// Sincronización automática con la base de datos en la nube (Render)
-async function initServerSync(forceRefresh = false) {
+// Sincronización inteligente con la base de datos en la nube (Render)
+let isSyncing = false;
+async function initServerSync(isManualClick = false) {
+  if (isSyncing) return;
+  isSyncing = true;
   try {
+    const local = loadRaffles();
+
+    // Si es clic manual, primero asegurar que los cambios locales se suban a la nube
+    if (isManualClick && local && local.length > 0) {
+      await fetch('/api/raffles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raffles: local, full_sync: true })
+      });
+    }
+
     const res = await fetch('/api/raffles');
     if (res.ok) {
       const data = await res.json();
       const serverRaffles = data.raffles;
-      if (serverRaffles && Array.isArray(serverRaffles) && serverRaffles.length > 0) {
+
+      if (!serverRaffles || serverRaffles.length === 0) {
+        // El servidor está vacío: subir lo que tenemos localmente
+        if (local && local.length > 0) {
+          await fetch('/api/raffles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raffles: local, full_sync: true })
+          });
+        }
+      } else if (!local || local.length === 0) {
+        // Local está vacío: descargar lo del servidor
         localStorage.setItem(RAFFLES_KEY, JSON.stringify(serverRaffles));
-        if (!state.currentRaffleId || !serverRaffles.some(r => r.id === state.currentRaffleId) || forceRefresh) {
+        if (serverRaffles.length > 0) {
           setActiveRaffle(serverRaffles[0].id);
-        } else {
-          setActiveRaffle(state.currentRaffleId);
         }
       } else {
-        // Si el servidor está vacío pero este dispositivo tiene datos locales, subirlos
-        const local = loadRaffles();
-        if (local && local.length > 0) {
-          syncRafflesToServer(local);
+        // Combinar inteligentemente por marca de tiempo (timestamp)
+        let shouldUpload = false;
+        const mergedMap = new Map();
+
+        // 1. Cargar rifas del servidor
+        for (const s of serverRaffles) {
+          mergedMap.set(s.id, s);
+        }
+
+        // 2. Comparar con rifas locales: la versión más reciente gana
+        for (const l of local) {
+          const s = mergedMap.get(l.id);
+          if (!s) {
+            // Local tiene una rifa que el servidor no tiene
+            mergedMap.set(l.id, l);
+            shouldUpload = true;
+          } else {
+            const localTime = Number(l.updatedAt || 0);
+            const serverTime = Number(s.updatedAt || 0);
+            if (localTime >= serverTime) {
+              // Local es más reciente o igual: mantener local
+              mergedMap.set(l.id, l);
+              if (localTime > serverTime) shouldUpload = true;
+            }
+          }
+        }
+
+        const merged = Array.from(mergedMap.values());
+
+        if (shouldUpload) {
+          await fetch('/api/raffles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raffles: merged, full_sync: true })
+          });
+        }
+
+        localStorage.setItem(RAFFLES_KEY, JSON.stringify(merged));
+
+        // Actualizar datos en pantalla sin perder la selección
+        if (state.currentRaffleId && merged.some(r => r.id === state.currentRaffleId)) {
+          const active = merged.find(r => r.id === state.currentRaffleId);
+          const defaultPrice = Number((active.config && active.config.ticketPrice) || 0);
+          state.config = active.config;
+          state.numbers = (active.numbers || []).map((item) => {
+            const fixed = { ...item };
+            if (!fixed.value || Number(fixed.value) <= 0) fixed.value = defaultPrice;
+            if (fixed.status === 'paid' && (!fixed.downPayment || Number(fixed.downPayment) <= 0)) fixed.downPayment = fixed.value;
+            return fixed;
+          });
+          renderEverything();
+        } else if (merged.length > 0 && !state.currentRaffleId) {
+          setActiveRaffle(merged[0].id);
         }
       }
     }
   } catch (err) {
     console.warn('Error al sincronizar con el servidor:', err);
+  } finally {
+    isSyncing = false;
   }
 }
 
@@ -1994,19 +2077,19 @@ async function initServerSync(forceRefresh = false) {
 const syncBtn = $('#syncBtn');
 if (syncBtn) {
   syncBtn.addEventListener('click', async () => {
-    syncBtn.textContent = '⏳ Sincronizando...';
+    syncBtn.textContent = '⏳ Guardando...';
     await initServerSync(true);
     setTimeout(() => {
-      syncBtn.textContent = '✅ Sincronizado';
+      syncBtn.textContent = '✅ Guardado';
       setTimeout(() => { syncBtn.textContent = '☁️ Sincronizar'; }, 2000);
-    }, 400);
+    }, 300);
   });
 }
 
 // Sincronización inicial al cargar
-initServerSync();
+initServerSync(false);
 
-// Auto-sincronización periódica cada 10 segundos para ver cambios entre usuarios/dispositivos
+// Auto-sincronización periódica cada 15 segundos para ver cambios entre usuarios
 setInterval(() => {
   initServerSync(false);
-}, 10000);
+}, 15000);
