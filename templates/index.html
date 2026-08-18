@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rifa Admin</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260818_2" />
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -20,6 +21,7 @@
             <input id="searchInput" type="text" placeholder="Buscar número, nombre o teléfono" />
           </label>
 
+        <button id="syncBtn" class="secondary-btn" aria-label="Sincronizar con la nube">☁️ Sincronizar</button>
         <button id="publicViewBtn" class="secondary-btn" aria-label="Pantalla pública">📺 Pantalla</button>
         <button id="drawBtn" class="secondary-btn" aria-label="Sortear">Sortear</button>
         <button id="newRaffleBtn" class="primary-btn" aria-label="Nueva rifa">+ Nueva rifa</button>
@@ -162,7 +164,7 @@
       </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260818_2"></script>
     <script>
       // Logout functionality
       document.getElementById('logoutBtn').addEventListener('click', async () => {

@@ -1937,15 +1937,16 @@ if (initialRaffles && initialRaffles.length) {
 renderEverything();
 
 // Sincronización automática con la base de datos en la nube (Render)
-async function initServerSync() {
+async function initServerSync(forceRefresh = false) {
   try {
     const res = await fetch('/api/raffles');
     if (res.ok) {
       const data = await res.json();
-      if (data.raffles && Array.isArray(data.raffles) && data.raffles.length > 0) {
-        localStorage.setItem(RAFFLES_KEY, JSON.stringify(data.raffles));
-        if (!state.currentRaffleId || !data.raffles.some(r => r.id === state.currentRaffleId)) {
-          setActiveRaffle(data.raffles[0].id);
+      const serverRaffles = data.raffles;
+      if (serverRaffles && Array.isArray(serverRaffles) && serverRaffles.length > 0) {
+        localStorage.setItem(RAFFLES_KEY, JSON.stringify(serverRaffles));
+        if (!state.currentRaffleId || !serverRaffles.some(r => r.id === state.currentRaffleId) || forceRefresh) {
+          setActiveRaffle(serverRaffles[0].id);
         } else {
           setActiveRaffle(state.currentRaffleId);
         }
@@ -1962,4 +1963,23 @@ async function initServerSync() {
   }
 }
 
+// Botón de sincronización manual en la barra superior
+const syncBtn = $('#syncBtn');
+if (syncBtn) {
+  syncBtn.addEventListener('click', async () => {
+    syncBtn.textContent = '⏳ Sincronizando...';
+    await initServerSync(true);
+    setTimeout(() => {
+      syncBtn.textContent = '✅ Sincronizado';
+      setTimeout(() => { syncBtn.textContent = '☁️ Sincronizar'; }, 2000);
+    }, 400);
+  });
+}
+
+// Sincronización inicial al cargar
 initServerSync();
+
+// Auto-sincronización periódica cada 10 segundos para ver cambios entre usuarios/dispositivos
+setInterval(() => {
+  initServerSync(false);
+}, 10000);
