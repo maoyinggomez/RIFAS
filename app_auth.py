@@ -340,10 +340,40 @@ def get_current_user():
     )
 
 
+MASTER_EMAILS = {
+    "maoying1614@gmail.com",
+    "villegaspabonyeison@gmail.com",
+}
+
+
+def is_master_user(user):
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    user_email = (user.email or "").strip().lower()
+    return user_email in MASTER_EMAILS or bool(getattr(user, "is_admin", False))
+
+
 @app.route("/api/raffles", methods=["GET"])
 @login_required
 def get_user_raffles():
-    records = RaffleData.query.order_by(RaffleData.updated_at.desc()).all()
+    is_master = is_master_user(current_user)
+    if is_master:
+        master_users = User.query.filter(User.email.in_(MASTER_EMAILS)).all()
+        master_ids = [u.id for u in master_users]
+        records = (
+            RaffleData.query.filter(
+                (RaffleData.user_id.in_(master_ids)) | (RaffleData.user_id.is_(None))
+            )
+            .order_by(RaffleData.updated_at.desc())
+            .all()
+        )
+    else:
+        records = (
+            RaffleData.query.filter_by(user_id=current_user.id)
+            .order_by(RaffleData.updated_at.desc())
+            .all()
+        )
+
     raffles = []
     for r in records:
         try:
@@ -358,6 +388,10 @@ def get_user_raffles():
 def sync_user_raffles():
     payload = request.get_json() or {}
     raffles = payload.get("raffles", [])
+    is_master = is_master_user(current_user)
+
+    master_users = User.query.filter(User.email.in_(MASTER_EMAILS)).all() if is_master else []
+    master_ids = [u.id for u in master_users]
 
     current_ids = set()
     for r in raffles:
@@ -365,7 +399,17 @@ def sync_user_raffles():
         if not rid:
             continue
         current_ids.add(rid)
-        record = RaffleData.query.filter_by(id=rid).first()
+
+        if is_master:
+            record = (
+                RaffleData.query.filter(
+                    (RaffleData.id == rid)
+                    & ((RaffleData.user_id.in_(master_ids)) | (RaffleData.user_id.is_(None)))
+                ).first()
+            )
+        else:
+            record = RaffleData.query.filter_by(id=rid, user_id=current_user.id).first()
+
         if not record:
             record = RaffleData(id=rid, user_id=current_user.id, data=json.dumps(r, ensure_ascii=False))
             db.session.add(record)
@@ -375,7 +419,15 @@ def sync_user_raffles():
             record.updated_at = datetime.utcnow()
 
     if payload.get("full_sync") and current_ids:
-        all_records = RaffleData.query.all()
+        if is_master:
+            all_records = (
+                RaffleData.query.filter(
+                    (RaffleData.user_id.in_(master_ids)) | (RaffleData.user_id.is_(None))
+                ).all()
+            )
+        else:
+            all_records = RaffleData.query.filter_by(user_id=current_user.id).all()
+
         for rec in all_records:
             if rec.id not in current_ids:
                 db.session.delete(rec)
@@ -387,7 +439,19 @@ def sync_user_raffles():
 @app.route("/api/raffles/<raffle_id>", methods=["DELETE"])
 @login_required
 def delete_user_raffle(raffle_id):
-    record = RaffleData.query.filter_by(id=str(raffle_id)).first()
+    is_master = is_master_user(current_user)
+    if is_master:
+        master_users = User.query.filter(User.email.in_(MASTER_EMAILS)).all()
+        master_ids = [u.id for u in master_users]
+        record = (
+            RaffleData.query.filter(
+                (RaffleData.id == str(raffle_id))
+                & ((RaffleData.user_id.in_(master_ids)) | (RaffleData.user_id.is_(None)))
+            ).first()
+        )
+    else:
+        record = RaffleData.query.filter_by(id=str(raffle_id), user_id=current_user.id).first()
+
     if record:
         db.session.delete(record)
         db.session.commit()

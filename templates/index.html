@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Rifa Admin</title>
-    <link rel="stylesheet" href="styles.css?v=20260818_compact_1" />
+    <link rel="stylesheet" href="styles.css?v=20260820_isolation_1" />
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
-  <body>
+  <body data-user-email="{{ current_user.email if current_user.is_authenticated else '' }}" data-user-id="{{ current_user.id if current_user.is_authenticated else '' }}">
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-header">
@@ -168,7 +168,7 @@
       </div>
     </div>
 
-    <script src="app.js?v=20260818_dedup_1"></script>
+    <script src="app.js?v=20260820_isolation_1"></script>
     <script>
       // Logout functionality
       document.getElementById('logoutBtn').addEventListener('click', async () => {

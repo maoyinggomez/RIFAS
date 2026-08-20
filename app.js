@@ -1,6 +1,11 @@
 const DEFAULT_NUMBER_COUNT = 160;
-const STORAGE_KEY = 'rifa-state-v1';
-const CONFIG_KEY = 'rifa-config-v1';
+
+const currentUserEmail = (document.body && document.body.dataset && document.body.dataset.userEmail ? document.body.dataset.userEmail : '').trim().toLowerCase();
+const isMasterUser = ['maoying1614@gmail.com', 'villegaspabonyeison@gmail.com'].includes(currentUserEmail);
+
+const STORAGE_KEY = isMasterUser || !currentUserEmail ? 'rifa-state-v1' : `rifa-state-${currentUserEmail}`;
+const CONFIG_KEY = isMasterUser || !currentUserEmail ? 'rifa-config-v1' : `rifa-config-${currentUserEmail}`;
+const RAFFLES_KEY = isMasterUser || !currentUserEmail ? 'rifa-collection-v1' : `rifa-collection-${currentUserEmail}`;
 
 const seedData = [
   { number: 1, status: 'reserved', name: 'Daniel Felipe', phone: '321 000 0001', value: 20000, downPayment: 10000, notes: 'Se paga en dos cuotas', date: '2026-08-15', playDate: '2026-09-20' },
@@ -112,8 +117,6 @@ function loadState(config) {
 
   return initializeNumbers(count);
 }
-
-const RAFFLES_KEY = 'rifa-collection-v1';
 
 // Función para limpiar, ordenar y desduplicar rifas por ID y por Nombre
 function cleanAndDeduplicateRaffles(rafflesList) {
